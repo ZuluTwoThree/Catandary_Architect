@@ -9,7 +9,6 @@ import { LinkType } from '../../model/enums';
 
 export type OpmLinkEdgeData = {
   linkType: LinkType;
-  label?: string;
   condition?: string;
   [key: string]: unknown;
 };
@@ -29,6 +28,23 @@ const LINK_STYLES: Record<LinkType, { stroke: string; dasharray?: string }> = {
   [LinkType.InstrumentEvent]: { stroke: '#000000' },
 };
 
+/**
+ * OPM Link marker conventions (ISO 19450 / OPCat2):
+ *
+ * markerEnd = at the destination (target) end of the edge
+ * markerStart = at the source end of the edge
+ *
+ * Consumption:  filled arrow ▶ at process (object consumed)
+ * Result:       filled arrow ▶ at object (object created)
+ * Effect:       open arrow ▷ at both ends (state change)
+ * Instrument:   open circle ○ at process end (object enables, unchanged)
+ * Agent:        filled circle ● at process end (active enabler)
+ * Condition:    open arrow ▷ at process end
+ * Invocation:   dashed line + filled arrow ▶
+ * Event:        filled circle ● at process end
+ * Exception:    red filled arrow at process end
+ * InstrumentEvent: filled circle ● at process end
+ */
 function getMarkerEnd(linkType: LinkType): string {
   switch (linkType) {
     case LinkType.Consumption:
@@ -38,21 +54,31 @@ function getMarkerEnd(linkType: LinkType): string {
     case LinkType.Effect:
       return 'url(#arrowOpen)';
     case LinkType.Instrument:
-      return 'url(#arrowOpen)';
+      return 'url(#circleOpen)';
     case LinkType.Agent:
-      return 'url(#arrowFilledDouble)';
+      return 'url(#circleFilled)';
     case LinkType.Condition:
       return 'url(#arrowOpen)';
     case LinkType.Invocation:
       return 'url(#arrowFilled)';
     case LinkType.Event:
-      return 'url(#arrowFilledDouble)';
+      return 'url(#circleFilled)';
     case LinkType.Exception:
       return 'url(#arrowExc)';
     case LinkType.InstrumentEvent:
-      return 'url(#arrowFilledDouble)';
+      return 'url(#circleFilled)';
     default:
       return 'url(#arrowOpen)';
+  }
+}
+
+function getMarkerStart(linkType: LinkType): string | undefined {
+  switch (linkType) {
+    case LinkType.Effect:
+      // Effect links have open arrowheads at both ends
+      return 'url(#arrowOpen)';
+    default:
+      return undefined;
   }
 }
 
@@ -67,6 +93,7 @@ export const OpmLinkEdge = memo(
   }: EdgeProps<OpmLinkEdgeType>) => {
     const linkType = data?.linkType ?? LinkType.Effect;
     const linkStyle = LINK_STYLES[linkType];
+    const markerStart = getMarkerStart(linkType);
 
     const [edgePath, labelX, labelY] = getStraightPath({
       sourceX,
@@ -80,6 +107,7 @@ export const OpmLinkEdge = memo(
         <BaseEdge
           path={edgePath}
           markerEnd={getMarkerEnd(linkType)}
+          markerStart={markerStart}
           style={{
             ...style,
             stroke: linkStyle.stroke,
@@ -87,27 +115,16 @@ export const OpmLinkEdge = memo(
             strokeDasharray: linkStyle.dasharray,
           }}
         />
-        {data?.label && (
-          <text
-            x={labelX}
-            y={labelY - 8}
-            textAnchor="middle"
-            fontSize={10}
-            fill="#333"
-          >
-            {data.label}
-          </text>
-        )}
         {data?.condition && (
           <text
             x={labelX}
-            y={labelY + 12}
+            y={labelY - 6}
             textAnchor="middle"
-            fontSize={9}
-            fill="#666"
+            fontSize={10}
+            fill="#333"
             fontStyle="italic"
           >
-            [{data.condition}]
+            {data.condition}
           </text>
         )}
       </>

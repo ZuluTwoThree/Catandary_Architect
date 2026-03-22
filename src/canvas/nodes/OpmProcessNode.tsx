@@ -1,6 +1,7 @@
 import { memo } from 'react';
-import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
+import { type NodeProps, type Node } from '@xyflow/react';
 import type { Essence } from '../../model/enums';
+import { NodeHandles } from './NodeHandles';
 
 export type OpmProcessNodeData = {
   label: string;
@@ -39,14 +40,7 @@ export const OpmProcessNode = memo(({ data }: NodeProps<OpmProcessNodeType>) => 
         overflow: 'hidden',
       }}
     >
-      <Handle type="target" position={Position.Top} id="top" style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Left} id="left" style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Right} id="right" style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-in" style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Top} id="top-out" style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Left} id="left-out" style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Right} id="right-in" style={{ opacity: 0 }} />
+      <NodeHandles />
 
       <div
         style={{

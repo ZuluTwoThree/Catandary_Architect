@@ -14,6 +14,7 @@ import '@xyflow/react/dist/style.css';
 
 import { OpmObjectNode } from './nodes/OpmObjectNode';
 import { OpmProcessNode } from './nodes/OpmProcessNode';
+import { OpmRelationSymbolNode } from './nodes/OpmRelationSymbolNode';
 import { OpmLinkEdge } from './edges/OpmLinkEdge';
 import { OpmRelationEdge } from './edges/OpmRelationEdge';
 import { SvgDefs } from './edges/SvgDefs';
@@ -23,6 +24,7 @@ import type { OpdDiagram, LogicalModel } from '../model/types';
 const nodeTypes: NodeTypes = {
   opmObject: OpmObjectNode,
   opmProcess: OpmProcessNode,
+  opmRelationSymbol: OpmRelationSymbolNode,
 };
 
 const edgeTypes: EdgeTypes = {

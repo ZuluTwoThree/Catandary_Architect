@@ -11,24 +11,53 @@ import type {
   OpdVisualGeneralRelation,
   LogicalModel,
 } from '../model/types';
-import { ConnectionSide, Essence } from '../model/enums';
+import { ConnectionSide, Essence, RelationType } from '../model/enums';
 import type { OpmObjectNodeData } from './nodes/OpmObjectNode';
 import type { OpmProcessNodeData } from './nodes/OpmProcessNode';
+import type { OpmRelationSymbolNodeData } from './nodes/OpmRelationSymbolNode';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function connectionSideToHandle(side: ConnectionSide, isSource: boolean): string {
+/**
+ * Snaps a connection parameter (0.0–1.0) to the nearest handle percent.
+ * Handles exist at 10%, 30%, 50%, 70%, 90% on each side.
+ */
+const HANDLE_PERCENTS = [10, 30, 50, 70, 90];
+
+function snapToPercent(param: number): number {
+  const target = param * 100;
+  return HANDLE_PERCENTS.reduce((prev, curr) =>
+    Math.abs(curr - target) < Math.abs(prev - target) ? curr : prev
+  );
+}
+
+function sideLabel(side: ConnectionSide): string {
   switch (side) {
-    case ConnectionSide.Top:
-      return isSource ? 'top-out' : 'top';
-    case ConnectionSide.Bottom:
-      return isSource ? 'bottom' : 'bottom-in';
-    case ConnectionSide.Left:
-      return isSource ? 'left-out' : 'left';
-    case ConnectionSide.Right:
-      return isSource ? 'right' : 'right-in';
-    default:
-      return isSource ? 'bottom' : 'top';
+    case ConnectionSide.Top:    return 'top';
+    case ConnectionSide.Bottom: return 'bottom';
+    case ConnectionSide.Left:   return 'left';
+    case ConnectionSide.Right:  return 'right';
+    default:                    return 'top';
+  }
+}
+
+/** Generate a source handle ID: "{side}-{percent}-out" */
+function makeSourceHandle(side: ConnectionSide, param: number = 0.5): string {
+  return `${sideLabel(side)}-${snapToPercent(param)}-out`;
+}
+
+/** Generate a target handle ID: "{side}-{percent}" */
+function makeTargetHandle(side: ConnectionSide, param: number = 0.5): string {
+  return `${sideLabel(side)}-${snapToPercent(param)}`;
+}
+
+function oppositeSide(side: ConnectionSide): ConnectionSide {
+  switch (side) {
+    case ConnectionSide.Top:    return ConnectionSide.Bottom;
+    case ConnectionSide.Bottom: return ConnectionSide.Top;
+    case ConnectionSide.Left:   return ConnectionSide.Right;
+    case ConnectionSide.Right:  return ConnectionSide.Left;
+    default:                    return ConnectionSide.Top;
   }
 }
 
@@ -141,48 +170,97 @@ function linkToEdge(
     type: 'opmLink',
     source: sourceNodeId,
     target: destNodeId,
-    sourceHandle: connectionSideToHandle(link.sourceConnectionSide, true),
-    targetHandle: connectionSideToHandle(link.destinationConnectionSide, false),
+    sourceHandle: makeSourceHandle(link.sourceConnectionSide, link.sourceConnectionParameter),
+    targetHandle: makeTargetHandle(link.destinationConnectionSide, link.destinationConnectionParameter),
     data: {
       linkType: logicalLink?.linkType ?? 302,
-      label: logicalLink?.entity.name || undefined,
       condition: logicalLink?.condition || undefined,
     },
   };
 }
 
-// ─── Fundamental Relation Edges ───────────────────────────────────────
+// ─── Fundamental Relation: Symbol Node + Hub Edges ────────────────────
 
-function fundamentalRelationToEdges(
+/**
+ * In OPM, fundamental relations (Exhibition, Aggregation, Generalization,
+ * Instantiation) use a shared symbol (triangle) as a visual hub:
+ *
+ *   Source ──── △ ──── Dest1
+ *                ├─── Dest2
+ *                └─── Dest3
+ *
+ * We render this as:
+ *   1. A small "relation symbol" node at the symbol position
+ *   2. One edge: Source → Symbol (plain line, no markers)
+ *   3. N edges: Symbol → each Destination (plain lines, no markers)
+ */
+function fundamentalRelationToElements(
   group: OpdFundamentalRelationGroup,
   logical: LogicalModel,
   entityNodeMap: Map<number, string>,
-): Edge[] {
+): { nodes: Node[]; edges: Edge[] } {
   const sourceNodeId = entityNodeMap.get(group.sourceId);
-  if (!sourceNodeId) return [];
+  if (!sourceNodeId) return { nodes: [], edges: [] };
+
+  // Determine relation type from the first relation in the group
+  const firstRel = group.relations[0];
+  const logicalRel = firstRel ? logical.relations.get(firstRel.entityId) : undefined;
+  const relationType = logicalRel?.relationType ?? RelationType.Exhibition;
+
+  // Create the symbol node ID
+  const symbolNodeId = `relsym-${group.sourceId}-${group.sourceInOpdId}`;
+
+  // Symbol node at the CommonPart position
+  const symbolNode: Node = {
+    id: symbolNodeId,
+    type: 'opmRelationSymbol',
+    position: { x: group.symbolX, y: group.symbolY },
+    data: {
+      relationType,
+      width: group.symbolWidth || 16,
+      height: group.symbolHeight || 16,
+    } satisfies OpmRelationSymbolNodeData,
+  };
 
   const edges: Edge[] = [];
+
+  // Determine which side of the symbol faces the source
+  // The source connection side tells us which side of the SOURCE the line leaves from.
+  // The symbol should receive on the opposite side (e.g., source leaves from bottom → symbol receives on top)
+  const symbolReceiveSide = oppositeSide(group.sourceConnectionSide);
+
+  // Edge: Source → Symbol (straight line, no markers)
+  edges.push({
+    id: `frel-src-${group.sourceId}-${group.sourceInOpdId}`,
+    type: 'straight',
+    source: sourceNodeId,
+    target: symbolNodeId,
+    sourceHandle: makeSourceHandle(group.sourceConnectionSide, group.sourceConnectionParameter),
+    targetHandle: makeTargetHandle(symbolReceiveSide),
+    style: { stroke: '#000', strokeWidth: 1.5 },
+  });
+
+  // Edges: Symbol → each Destination (straight lines, no markers)
   for (const rel of group.relations) {
     const destNodeId = entityNodeMap.get(rel.destinationId);
     if (!destNodeId) continue;
 
-    const logicalRel = logical.relations.get(rel.entityId);
+    // The destination side tells us which side of the DESTINATION the line arrives at.
+    // The symbol should send from the opposite side
+    const symbolSendSide = oppositeSide(rel.destinationSide);
 
     edges.push({
-      id: `frel-${rel.entityId}-${rel.entityInOpdId}`,
-      type: 'opmRelation',
-      source: sourceNodeId,
+      id: `frel-dst-${rel.entityId}-${rel.entityInOpdId}`,
+      type: 'straight',
+      source: symbolNodeId,
       target: destNodeId,
-      sourceHandle: connectionSideToHandle(group.sourceConnectionSide, true),
-      targetHandle: connectionSideToHandle(rel.destinationSide, false),
-      data: {
-        relationType: logicalRel?.relationType ?? 202,
-        forwardMeaning: logicalRel?.forwardRelationMeaning || undefined,
-        backwardMeaning: logicalRel?.backwardRelationMeaning || undefined,
-      },
+      sourceHandle: makeSourceHandle(symbolSendSide),
+      targetHandle: makeTargetHandle(rel.destinationSide, rel.destinationParameter),
+      style: { stroke: '#000', strokeWidth: 1.5 },
     });
   }
-  return edges;
+
+  return { nodes: [symbolNode], edges };
 }
 
 // ─── General Relation Edges ──────────────────────────────────────────
@@ -204,11 +282,10 @@ function generalRelationToEdge(
     type: 'opmRelation',
     source: sourceNodeId,
     target: destNodeId,
-    sourceHandle: connectionSideToHandle(line.sourceConnectionSide, true),
-    targetHandle: connectionSideToHandle(line.destinationConnectionSide, false),
+    sourceHandle: makeSourceHandle(line.sourceConnectionSide, line.sourceConnectionParameter),
+    targetHandle: makeTargetHandle(line.destinationConnectionSide, line.destinationConnectionParameter),
     data: {
       relationType: logicalRel?.relationType ?? 205,
-      label: logicalRel?.entity.name || undefined,
       forwardMeaning: logicalRel?.forwardRelationMeaning || undefined,
       backwardMeaning: logicalRel?.backwardRelationMeaning || undefined,
     },
@@ -236,9 +313,11 @@ export function opdToFlow(
     if (edge) edges.push(edge);
   }
 
-  // Fundamental relations
+  // Fundamental relations (symbol node + hub edges)
   for (const group of opd.fundamentalRelations) {
-    edges.push(...fundamentalRelationToEdges(group, logical, entityNodeMap));
+    const elements = fundamentalRelationToElements(group, logical, entityNodeMap);
+    nodes.push(...elements.nodes);
+    edges.push(...elements.edges);
   }
 
   // General (tagged) relations
