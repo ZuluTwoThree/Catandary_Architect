@@ -61,6 +61,17 @@ function oppositeSide(side: ConnectionSide): ConnectionSide {
   }
 }
 
+/** Collect all visual things from an OPD, including mainEntity children */
+function allThings(opd: OpdDiagram): OpdVisualThing[] {
+  const result = [...opd.things];
+  if (opd.mainEntity) {
+    for (const child of opd.mainEntity.children) {
+      result.push(child);
+    }
+  }
+  return result;
+}
+
 /** Build a lookup from entityId → node ID in this OPD */
 function buildEntityNodeMap(things: OpdVisualThing[]): Map<number, string> {
   const map = new Map<number, string>();
@@ -303,8 +314,9 @@ export function opdToFlow(
   opd: OpdDiagram,
   logical: LogicalModel,
 ): FlowElements {
-  const entityNodeMap = buildEntityNodeMap(opd.things);
-  const nodes = collectThingNodes(opd.things, logical);
+  const things = allThings(opd);
+  const entityNodeMap = buildEntityNodeMap(things);
+  const nodes = collectThingNodes(things, logical);
   const edges: Edge[] = [];
 
   // Procedural links
