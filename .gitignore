@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Test coverage
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Reference materials (local only, not committed)
+/OPCat2/
+/OPCAT_Manual_3.0.pdf
+/Mastering Model Complexity_*.md
+/Methodik-Handbuch_*.md
+/OPCloud Funktionsübersicht*.md
+/The Universe in Two Words_*.md
+*.opz
+*.opx
+*.jar
