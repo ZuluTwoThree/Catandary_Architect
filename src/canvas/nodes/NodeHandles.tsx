@@ -15,6 +15,15 @@ import { Handle, Position } from '@xyflow/react';
 
 const PERCENTS = [10, 30, 50, 70, 90];
 
+const handleStyle: React.CSSProperties = {
+  width: 8,
+  height: 8,
+  background: '#0f3460',
+  border: '1px solid #fff',
+  opacity: 0,
+  transition: 'opacity 0.15s',
+};
+
 export function NodeHandles() {
   const handles: React.ReactNode[] = [];
 
@@ -22,30 +31,30 @@ export function NodeHandles() {
     // Top
     handles.push(
       <Handle key={`t-${pct}-in`} type="target" position={Position.Top}
-        id={`top-${pct}`} style={{ left: `${pct}%`, opacity: 0 }} />,
+        id={`top-${pct}`} className="opm-handle" style={{ ...handleStyle, left: `${pct}%` }} />,
       <Handle key={`t-${pct}-out`} type="source" position={Position.Top}
-        id={`top-${pct}-out`} style={{ left: `${pct}%`, opacity: 0 }} />,
+        id={`top-${pct}-out`} className="opm-handle" style={{ ...handleStyle, left: `${pct}%` }} />,
     );
     // Bottom
     handles.push(
       <Handle key={`b-${pct}-in`} type="target" position={Position.Bottom}
-        id={`bottom-${pct}`} style={{ left: `${pct}%`, opacity: 0 }} />,
+        id={`bottom-${pct}`} className="opm-handle" style={{ ...handleStyle, left: `${pct}%` }} />,
       <Handle key={`b-${pct}-out`} type="source" position={Position.Bottom}
-        id={`bottom-${pct}-out`} style={{ left: `${pct}%`, opacity: 0 }} />,
+        id={`bottom-${pct}-out`} className="opm-handle" style={{ ...handleStyle, left: `${pct}%` }} />,
     );
     // Left
     handles.push(
       <Handle key={`l-${pct}-in`} type="target" position={Position.Left}
-        id={`left-${pct}`} style={{ top: `${pct}%`, opacity: 0 }} />,
+        id={`left-${pct}`} className="opm-handle" style={{ ...handleStyle, top: `${pct}%` }} />,
       <Handle key={`l-${pct}-out`} type="source" position={Position.Left}
-        id={`left-${pct}-out`} style={{ top: `${pct}%`, opacity: 0 }} />,
+        id={`left-${pct}-out`} className="opm-handle" style={{ ...handleStyle, top: `${pct}%` }} />,
     );
     // Right
     handles.push(
       <Handle key={`r-${pct}-in`} type="target" position={Position.Right}
-        id={`right-${pct}`} style={{ top: `${pct}%`, opacity: 0 }} />,
+        id={`right-${pct}`} className="opm-handle" style={{ ...handleStyle, top: `${pct}%` }} />,
       <Handle key={`r-${pct}-out`} type="source" position={Position.Right}
-        id={`right-${pct}-out`} style={{ top: `${pct}%`, opacity: 0 }} />,
+        id={`right-${pct}-out`} className="opm-handle" style={{ ...handleStyle, top: `${pct}%` }} />,
     );
   }
 

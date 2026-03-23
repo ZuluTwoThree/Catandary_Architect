@@ -601,3 +601,58 @@
 .inline-edit-input {
   font-family: inherit;
 }
+
+/* ─── Node Handles (visible on hover) ──────────────────────────────── */
+.react-flow__node:hover .opm-handle {
+  opacity: 1 !important;
+}
+
+.react-flow__node.selected .opm-handle {
+  opacity: 1 !important;
+}
+
+/* ─── Connection Line ──────────────────────────────────────────────── */
+.react-flow__connection-line {
+  stroke: #0f3460;
+  stroke-width: 1.5;
+}
+
+/* ─── Link Type Dialog ─────────────────────────────────────────────── */
+.link-type-dialog {
+  position: fixed;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  padding: 4px 0;
+  min-width: 180px;
+}
+
+.link-type-dialog-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  padding: 6px 16px 4px;
+  border-bottom: 1px solid #eee;
+}
+
+.link-type-dialog-item {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.1s;
+}
+
+.link-type-dialog-item:hover {
+  background: #f0f4ff;
+  color: #0f3460;
+}

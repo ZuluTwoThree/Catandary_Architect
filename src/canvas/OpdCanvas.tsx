@@ -8,9 +8,11 @@ import {
   type NodeTypes,
   type EdgeTypes,
   type Node,
+  type Edge,
   type NodeChange,
   type EdgeChange,
   type NodeDragHandler,
+  type Connection,
   applyNodeChanges,
   applyEdgeChanges,
 } from '@xyflow/react';
@@ -24,8 +26,10 @@ import { OpmRelationEdge } from './edges/OpmRelationEdge';
 import { SvgDefs } from './edges/SvgDefs';
 import { opdToFlow } from './opd-to-flow';
 import { ContextMenu, type ContextMenuState } from './ContextMenu';
+import { LinkTypeDialog } from './LinkTypeDialog';
 import { useModelStore } from '../store/model-store';
 import type { OpdDiagram, LogicalModel } from '../model/types';
+import type { LinkType } from '../model/enums';
 
 const nodeTypes: NodeTypes = {
   opmObject: OpmObjectNode,
@@ -52,10 +56,16 @@ function parseNodeId(nodeId: string): { entityId: number; entityInOpdId: number 
 
 /** Parse entity ID from an edge ID */
 function parseEdgeEntityId(edgeId: string): number | null {
-  // link-{entityId}-{inOpdId} or grel-{entityId}-{inOpdId}
   const match = edgeId.match(/^(?:link|grel)-(\d+)-/);
   if (!match) return null;
   return Number(match[1]);
+}
+
+interface PendingConnection {
+  sourceId: number;
+  targetId: number;
+  screenX: number;
+  screenY: number;
 }
 
 export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
@@ -63,6 +73,7 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
   const deleteEntity = useModelStore((s) => s.deleteEntity);
   const deleteConnection = useModelStore((s) => s.deleteConnection);
   const setSelectedEntityId = useModelStore((s) => s.setSelectedEntityId);
+  const addLink = useModelStore((s) => s.addLink);
 
   // Derive nodes/edges from model (source of truth)
   const { nodes: derivedNodes, edges: derivedEdges } = useMemo(
@@ -70,11 +81,11 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
     [opd, logical],
   );
 
-  // Local state for drag interactions (position changes are applied on drag stop)
+  // Local state for drag interactions
   const [nodes, setNodes] = useState<Node[]>(derivedNodes);
-  const [edges, setEdges] = useState(derivedEdges);
+  const [edges, setEdges] = useState<Edge[]>(derivedEdges);
 
-  // Sync when derived data changes (e.g. after CRUD operations)
+  // Sync when derived data changes
   const prevDerivedRef = useRef(derivedNodes);
   if (prevDerivedRef.current !== derivedNodes) {
     prevDerivedRef.current = derivedNodes;
@@ -86,7 +97,6 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
     setEdges(derivedEdges);
   }
 
-  // Handle node position changes locally (for smooth dragging)
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setNodes((nds) => applyNodeChanges(changes, nds));
   }, []);
@@ -106,7 +116,6 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
     [opd.id, updateNodePosition],
   );
 
-  // Handle node deletion
   const onNodesDelete = useCallback(
     (deleted: Node[]) => {
       for (const node of deleted) {
@@ -117,7 +126,6 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
     [deleteEntity],
   );
 
-  // Handle edge deletion
   const onEdgesDelete = useCallback(
     (deleted: { id: string }[]) => {
       for (const edge of deleted) {
@@ -128,7 +136,6 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
     [deleteConnection],
   );
 
-  // Handle node selection
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
       const parsed = parseNodeId(node.id);
@@ -139,7 +146,61 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
 
   const onPaneClick = useCallback(() => {
     setSelectedEntityId(null);
+    setPendingConnection(null);
   }, [setSelectedEntityId]);
+
+  // ── Link Creation via Connect ──────────────────────────────────────
+  const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
+  const lastConnectEventRef = useRef<MouseEvent | null>(null);
+
+  // Capture mouse position during connect drag
+  const onConnectStart = useCallback(() => {
+    const handler = (e: MouseEvent) => {
+      lastConnectEventRef.current = e;
+    };
+    window.addEventListener('mousemove', handler);
+    // Clean up after a short delay (connect will finish)
+    const cleanup = () => {
+      window.removeEventListener('mousemove', handler);
+      window.removeEventListener('mouseup', cleanup);
+    };
+    window.addEventListener('mouseup', cleanup);
+  }, []);
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      const source = parseNodeId(connection.source);
+      const target = parseNodeId(connection.target);
+      if (!source || !target) return;
+
+      // Get screen position for the dialog
+      const mouseEvent = lastConnectEventRef.current;
+      const screenX = mouseEvent?.clientX ?? 400;
+      const screenY = mouseEvent?.clientY ?? 300;
+
+      setPendingConnection({
+        sourceId: source.entityId,
+        targetId: target.entityId,
+        screenX,
+        screenY,
+      });
+    },
+    [],
+  );
+
+  const onLinkTypeSelect = useCallback(
+    (linkType: LinkType) => {
+      if (!pendingConnection) return;
+      addLink(linkType, pendingConnection.sourceId, pendingConnection.targetId, opd.id);
+      setPendingConnection(null);
+    },
+    [pendingConnection, addLink, opd.id],
+  );
+
+  const onLinkTypeCancel = useCallback(() => {
+    setPendingConnection(null);
+  }, []);
 
   // ── Context Menu ──────────────────────────────────────────────────
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -206,6 +267,8 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
         onEdgesDelete={onEdgesDelete}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onConnectStart={onConnectStart}
+        onConnect={onConnect}
         onContextMenu={onContextMenu}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
@@ -217,6 +280,7 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
         minZoom={0.1}
         maxZoom={3}
         deleteKeyCode="Delete"
+        connectionLineStyle={{ stroke: '#0f3460', strokeWidth: 1.5, strokeDasharray: '5 3' }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e0e0e0" />
         <Controls />
@@ -231,6 +295,14 @@ export function OpdCanvas({ opd, logical }: OpdCanvasProps) {
       </ReactFlow>
       {contextMenu && (
         <ContextMenu state={contextMenu} onClose={closeContextMenu} />
+      )}
+      {pendingConnection && (
+        <LinkTypeDialog
+          x={pendingConnection.screenX}
+          y={pendingConnection.screenY}
+          onSelect={onLinkTypeSelect}
+          onCancel={onLinkTypeCancel}
+        />
       )}
     </div>
   );
