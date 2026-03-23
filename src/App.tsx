@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { useModelStore } from './store/model-store';
 import { OpdCanvas } from './canvas/OpdCanvas';
 import { OplPanel } from './opl/OplPanel';
+import { PropertyPanel } from './components/PropertyPanel';
+import { useUndoRedo } from './hooks/useUndoRedo';
 import type { OpdDiagram } from './model/types';
 import './App.css';
 
@@ -17,15 +19,25 @@ function collectOpdList(opd: OpdDiagram, depth: number = 0): Array<{ opd: OpdDia
 }
 
 function App() {
-  const { model, isLoading, error, loadFromBuffer, clear } = useModelStore();
-  const [selectedOpdId, setSelectedOpdId] = useState<number | null>(null);
+  const model = useModelStore((s) => s.model);
+  const isLoading = useModelStore((s) => s.isLoading);
+  const error = useModelStore((s) => s.error);
+  const isDirty = useModelStore((s) => s.isDirty);
+  const loadFromBuffer = useModelStore((s) => s.loadFromBuffer);
+  const clear = useModelStore((s) => s.clear);
+  const activeOpdId = useModelStore((s) => s.activeOpdId);
+  const setActiveOpdId = useModelStore((s) => s.setActiveOpdId);
+  const selectedEntityId = useModelStore((s) => s.selectedEntityId);
+
   const [isDragging, setIsDragging] = useState(false);
+
+  // Undo/Redo keyboard shortcuts
+  useUndoRedo();
 
   const handleFile = useCallback(
     async (file: File) => {
       const buffer = await file.arrayBuffer();
       loadFromBuffer(buffer);
-      setSelectedOpdId(null);
     },
     [loadFromBuffer],
   );
@@ -57,9 +69,17 @@ function App() {
     [handleFile],
   );
 
+  const handleUndo = useCallback(() => {
+    useModelStore.temporal.getState().undo();
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    useModelStore.temporal.getState().redo();
+  }, []);
+
   // Determine which OPD to display
   const activeOpd = model
-    ? (selectedOpdId !== null ? model.visual.allOpds.get(selectedOpdId) : model.visual.rootOpd) ?? model.visual.rootOpd
+    ? (activeOpdId !== null ? model.visual.allOpds.get(activeOpdId) : model.visual.rootOpd) ?? model.visual.rootOpd
     : null;
 
   const opdList = model ? collectOpdList(model.visual.rootOpd) : [];
@@ -99,7 +119,10 @@ function App() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h2>{model.name}</h2>
+          <h2>
+            {model.name}
+            {isDirty && <span className="dirty-indicator" title="Unsaved changes"> *</span>}
+          </h2>
           <span className="meta">{model.author}</span>
         </div>
 
@@ -111,7 +134,7 @@ function App() {
                 <button
                   className={`opd-item ${activeOpd?.id === opd.id ? 'active' : ''}`}
                   style={{ paddingLeft: 12 + depth * 16 }}
-                  onClick={() => setSelectedOpdId(opd.id)}
+                  onClick={() => setActiveOpdId(opd.id)}
                 >
                   <span className="opd-icon">{depth === 0 ? 'SD' : `${opd.name.startsWith('SD') ? '' : 'SD'}${opd.name}`}</span>
                   <span className="opd-name">{opd.name}</span>
@@ -142,8 +165,11 @@ function App() {
 
       {/* Main canvas area */}
       <main className="canvas-area" onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}>
-        {/* Breadcrumb */}
+        {/* Breadcrumb + Toolbar */}
         <div className="breadcrumb">
+          <button className="toolbar-btn" onClick={handleUndo} title="Undo (Ctrl+Z)">&#x21A9;</button>
+          <button className="toolbar-btn" onClick={handleRedo} title="Redo (Ctrl+Shift+Z)">&#x21AA;</button>
+          <span className="breadcrumb-sep">|</span>
           <span className="breadcrumb-model">{model.name}</span>
           <span className="breadcrumb-sep">/</span>
           <span className="breadcrumb-opd">{activeOpd?.name ?? 'SD'}</span>
@@ -162,6 +188,9 @@ function App() {
           <div className="drop-overlay">Drop .opz/.opx to replace model</div>
         )}
       </main>
+
+      {/* Property Panel */}
+      {selectedEntityId !== null && <PropertyPanel />}
     </div>
   );
 }

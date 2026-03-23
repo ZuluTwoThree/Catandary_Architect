@@ -110,6 +110,7 @@ function thingToNode(
       });
 
     const data: OpmObjectNodeData = {
+      entityId: thing.entityId,
       label: obj?.entity.name ?? `Object ${thing.entityId}`,
       essence: obj?.essence ?? Essence.Informatical,
       backgroundColor: thing.backgroundColor,
@@ -131,6 +132,7 @@ function thingToNode(
   // Process
   const proc = logical.processes.get(thing.entityId);
   const data: OpmProcessNodeData = {
+    entityId: thing.entityId,
     label: proc?.entity.name ?? `Process ${thing.entityId}`,
     essence: proc?.essence ?? Essence.Informatical,
     backgroundColor: thing.backgroundColor,
