@@ -228,6 +228,13 @@ export interface ModelState {
     x: number,
     y: number,
   ) => void;
+  updateNodeSize: (
+    opdId: number,
+    entityId: number,
+    entityInOpdId: number,
+    width: number,
+    height: number,
+  ) => void;
 }
 
 // ─── Store Creation ───────────────────────────────────────────────────
@@ -554,6 +561,19 @@ export const useModelStore = create<ModelState>()(
           if (thing) {
             thing.x = x;
             thing.y = y;
+            state.isDirty = true;
+          }
+        }),
+
+      updateNodeSize: (opdId, entityId, entityInOpdId, width, height) =>
+        set((state) => {
+          const opd = state.model?.visual.allOpds.get(opdId);
+          if (!opd) return;
+
+          const thing = findVisualThingInOpd(opd, entityId, entityInOpdId);
+          if (thing) {
+            thing.width = Math.round(width);
+            thing.height = Math.round(height);
             state.isDirty = true;
           }
         }),

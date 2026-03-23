@@ -125,6 +125,8 @@ function thingToNode(
       id: nodeId,
       type: 'opmObject',
       position: { x: thing.x, y: thing.y },
+      width: thing.width,
+      height: thing.height,
       data,
     };
   }
@@ -146,6 +148,8 @@ function thingToNode(
     id: nodeId,
     type: 'opmProcess',
     position: { x: thing.x, y: thing.y },
+    width: thing.width,
+    height: thing.height,
     data,
   };
 }
