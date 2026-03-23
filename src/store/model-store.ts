@@ -102,6 +102,84 @@ function defaultVisualLink(
   };
 }
 
+// ─── Helper: auto-size calculation ────────────────────────────────────
+
+const CHAR_WIDTH = 7.2;    // approx px per char at font-size 12, font-weight 600
+const LINE_HEIGHT = 16;    // px per line of label text
+const STATE_BADGE_H = 24;  // px height of a state badge row
+const PAD_X = 16;          // horizontal padding inside node
+const PAD_Y = 12;          // vertical padding inside node
+const MIN_W = 60;
+const MIN_H = 40;
+
+/** Estimate needed width/height for an object node based on its content */
+function autoSizeObject(name: string, stateCount: number, currentW: number, currentH: number): { w: number; h: number } {
+  // Label width: longest line
+  const lines = name.split('\n');
+  const maxLineW = Math.max(...lines.map((l) => l.length * CHAR_WIDTH));
+  const labelW = maxLineW + PAD_X * 2;
+  const labelH = lines.length * LINE_HEIGHT;
+
+  // States add vertical space
+  const statesH = stateCount > 0 ? STATE_BADGE_H * Math.ceil(stateCount / 3) + 4 : 0;
+
+  const neededW = Math.max(MIN_W, labelW);
+  const neededH = Math.max(MIN_H, labelH + statesH + PAD_Y);
+
+  return {
+    w: Math.max(currentW, Math.round(neededW)),
+    h: Math.max(currentH, Math.round(neededH)),
+  };
+}
+
+/** Estimate needed size for a process node (ellipse needs more space) */
+function autoSizeProcess(name: string, currentW: number, currentH: number): { w: number; h: number } {
+  const lines = name.split('\n');
+  const maxLineW = Math.max(...lines.map((l) => l.length * CHAR_WIDTH));
+  // Ellipse needs ~1.4x the content bounding box
+  const labelW = (maxLineW + PAD_X) * 1.4;
+  const labelH = (lines.length * LINE_HEIGHT + PAD_Y) * 1.4;
+
+  const neededW = Math.max(MIN_W, labelW);
+  const neededH = Math.max(MIN_H, labelH);
+
+  return {
+    w: Math.max(currentW, Math.round(neededW)),
+    h: Math.max(currentH, Math.round(neededH)),
+  };
+}
+
+/** Apply auto-size to all visual representations of an entity */
+function autoSizeEntity(model: OpmModel, entityId: number): void {
+  const obj = model.logical.objects.get(entityId);
+  const proc = model.logical.processes.get(entityId);
+  const name = obj?.entity.name ?? proc?.entity.name ?? '';
+
+  for (const opd of model.visual.allOpds.values()) {
+    const updateThings = (things: OpdVisualThing[]) => {
+      for (const t of things) {
+        if (t.entityId === entityId) {
+          if (t.thingType === 'object') {
+            const stateCount = obj?.states.length ?? 0;
+            const { w, h } = autoSizeObject(name, stateCount, t.width, t.height);
+            t.width = w;
+            t.height = h;
+          } else {
+            const { w, h } = autoSizeProcess(name, t.width, t.height);
+            t.width = w;
+            t.height = h;
+          }
+        }
+        updateThings(t.children);
+      }
+    };
+    updateThings(opd.things);
+    if (opd.mainEntity) {
+      updateThings(opd.mainEntity.children);
+    }
+  }
+}
+
 // ─── Helper: find visual thing in OPD (including mainEntity.children) ─
 
 function findVisualThingInOpd(
@@ -373,7 +451,7 @@ export const useModelStore = create<ModelState>()(
 
           // Add visual state to each OPD showing this object
           for (const opd of m.visual.allOpds.values()) {
-            const addVisualState = (things: OpdVisualThing[]) => {
+            const addVisualStateToThings = (things: OpdVisualThing[]) => {
               for (const t of things) {
                 if (t.entityId === objectId && t.thingType === 'object') {
                   opd.maxEntityEntry += 1;
@@ -391,14 +469,17 @@ export const useModelStore = create<ModelState>()(
                   };
                   t.visualStates.push(vs);
                 }
-                addVisualState(t.children);
+                addVisualStateToThings(t.children);
               }
             };
-            addVisualState(opd.things);
+            addVisualStateToThings(opd.things);
             if (opd.mainEntity) {
-              addVisualState(opd.mainEntity.children);
+              addVisualStateToThings(opd.mainEntity.children);
             }
           }
+
+          // Auto-grow object to fit new state
+          autoSizeEntity(m, objectId);
 
           state.isDirty = true;
         });
@@ -441,12 +522,22 @@ export const useModelStore = create<ModelState>()(
           if (!m) return;
 
           const obj = m.logical.objects.get(entityId);
-          if (obj) { obj.entity.name = name; state.isDirty = true; return; }
+          if (obj) {
+            obj.entity.name = name;
+            autoSizeEntity(m, entityId);
+            state.isDirty = true;
+            return;
+          }
 
           const proc = m.logical.processes.get(entityId);
-          if (proc) { proc.entity.name = name; state.isDirty = true; return; }
+          if (proc) {
+            proc.entity.name = name;
+            autoSizeEntity(m, entityId);
+            state.isDirty = true;
+            return;
+          }
 
-          // Search states
+          // Search states (state rename doesn't resize the parent object here)
           for (const o of m.logical.objects.values()) {
             const st = o.states.find((s) => s.entity.id === entityId);
             if (st) { st.entity.name = name; state.isDirty = true; return; }

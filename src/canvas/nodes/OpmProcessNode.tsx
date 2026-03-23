@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { type NodeProps, type Node, NodeResizer, useReactFlow } from '@xyflow/react';
+import { type NodeProps, type Node, NodeResizer } from '@xyflow/react';
 import type { Essence } from '../../model/enums';
 import { NodeHandles } from './NodeHandles';
 import { useModelStore } from '../../store/model-store';
@@ -26,14 +26,11 @@ export const OpmProcessNode = memo(({ id, data, selected }: NodeProps<OpmProcess
   const renameEntity = useModelStore((s) => s.renameEntity);
   const updateNodeSize = useModelStore((s) => s.updateNodeSize);
   const activeOpdId = useModelStore((s) => s.activeOpdId);
-  const model = useModelStore((s) => s.model);
-
-  const { getNode } = useReactFlow();
+  const rootOpdId = useModelStore((s) => s.model?.visual.rootOpd.id);
 
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
   const inputRef = useRef<HTMLInputElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -69,37 +66,12 @@ export const OpmProcessNode = memo(({ id, data, selected }: NodeProps<OpmProcess
     (_event: unknown, params: { width: number; height: number }) => {
       const match = id.match(/^thing-(\d+)-(\d+)$/);
       if (!match) return;
-      const opdId = activeOpdId ?? model?.visual.rootOpd.id;
+      const opdId = activeOpdId ?? rootOpdId;
       if (opdId == null) return;
       updateNodeSize(opdId, Number(match[1]), Number(match[2]), params.width, params.height);
     },
-    [id, activeOpdId, model, updateNodeSize],
+    [id, activeOpdId, rootOpdId, updateNodeSize],
   );
-
-  // Auto-size: grow node when content overflows
-  useEffect(() => {
-    if (!contentRef.current || editing) return;
-    const el = contentRef.current;
-    const scrollH = el.scrollHeight;
-    const scrollW = el.scrollWidth;
-    const node = getNode(id);
-    if (!node) return;
-    const currentW = node.measured?.width ?? data.width;
-    const currentH = node.measured?.height ?? data.height;
-
-    const neededH = scrollH + 20; // extra padding for ellipse
-    const neededW = Math.max(scrollW + 28, MIN_WIDTH);
-
-    if (neededH > currentH || neededW > currentW) {
-      const newW = Math.max(currentW, neededW);
-      const newH = Math.max(currentH, neededH);
-      const match = id.match(/^thing-(\d+)-(\d+)$/);
-      if (!match) return;
-      const opdId = activeOpdId ?? model?.visual.rootOpd.id;
-      if (opdId == null) return;
-      updateNodeSize(opdId, Number(match[1]), Number(match[2]), newW, newH);
-    }
-  }, [data.label, id, activeOpdId, model, data.width, data.height, getNode, updateNodeSize, editing]);
 
   return (
     <>
@@ -107,13 +79,11 @@ export const OpmProcessNode = memo(({ id, data, selected }: NodeProps<OpmProcess
         minWidth={MIN_WIDTH}
         minHeight={MIN_HEIGHT}
         isVisible={selected}
-        lineStyle={{ borderColor: '#0f3460', borderRadius: '50%' }}
+        lineStyle={{ borderColor: '#0f3460' }}
         handleStyle={{ backgroundColor: '#0f3460', width: 8, height: 8 }}
         onResizeEnd={onResizeEnd}
-        keepAspectRatio={false}
       />
       <div
-        ref={contentRef}
         className="opm-process"
         style={{
           width: '100%',
