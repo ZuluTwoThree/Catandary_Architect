@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useModelStore } from './store/model-store';
 import { OpdCanvas } from './canvas/OpdCanvas';
+import { OplPanel } from './opl/OplPanel';
 import type { OpdDiagram } from './model/types';
 import './App.css';
 
@@ -149,7 +150,12 @@ function App() {
         </div>
 
         {activeOpd && (
-          <OpdCanvas opd={activeOpd} logical={model.logical} />
+          <OpdCanvas key={activeOpd.id} opd={activeOpd} logical={model.logical} />
+        )}
+
+        {/* OPL Panel */}
+        {activeOpd && (
+          <OplPanel opd={activeOpd} logical={model.logical} />
         )}
 
         {isDragging && (
